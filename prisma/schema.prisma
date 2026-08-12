@@ -1,0 +1,78 @@
+
+// PENGATURAN AWAL DATABASE
+
+// Bagian ini adalah pengaturan dasar untuk menyambungkan aplikasi dengan tempat penyimpanan data.
+// Pertama, kita meminta sistem untuk membuatkan alat bantu agar kode kita bisa ngobrol dengan database.
+// Kedua, kita mengatur jenis database yang dipakai, yaitu PostgreSQL, dan mengambil alamat rahasianya
+// dari pengaturan yang sudah kita buat sebelumnya.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+
+// DATA PENGGUNA (USER)
+
+// Ini adalah cetakan data untuk setiap orang yang mendaftar di aplikasi kita.
+// Data yang disimpan meliputi:
+// - Tanda pengenal unik yang dibuat otomatis.
+// - Nama panggilan pengguna yang tidak boleh sama dengan orang lain.
+// - Kata sandi yang sudah diacak dan disamarkan demi keamanan.
+// - Catatan berapa kali pengguna salah memasukkan kata sandi, lengkap dengan batas waktu kunci akun
+//   untuk mencegah orang jahat meretas masuk.
+// - Catatan waktu kapan akun ini pertama kali dibuat.
+// - Hubungan yang menunjukkan bahwa satu pengguna bisa memiliki banyak catatan buku harian.
+//
+// Kumpulan data ini akan disimpan di dalam kelompok atau tabel bernama "users".
+
+model User {
+  id               String    @id @default(uuid())
+  displayName      String    @unique
+  passwordHash     String
+  failedLoginCount Int       @default(0)
+  lockedUntil      DateTime?
+  createdAt        DateTime  @default(now())
+
+  journalEntries JournalEntry[]
+
+  @@map("users")
+}
+
+// DATA CATATAN BUKU HARIAN (JOURNAL ENTRY)
+
+// Ini adalah cetakan data untuk setiap cerita atau catatan yang ditulis oleh pengguna.
+// Catatan ini dirancang agar sangat aman, informasinya meliputi:
+// - Tanda pengenal unik untuk setiap catatan yang dibuat otomatis.
+// - Tanda pengenal siapa pemilik catatan ini. Jika sang pemilik menghapus akunnya,
+//   semua catatannya akan otomatis terhapus sampai bersih.
+// - Isi catatan yang sudah dikunci rapat menggunakan sandi rahasia, lengkap dengan kunci pelengkapnya,
+//   sehingga admin database sekalipun tidak bisa membaca isinya.
+// - Label atau penanda untuk mengelompokkan cerita.
+// - Penilaian perasaan (apakah ceritanya sedih, senang, dll) yang ditebak oleh sistem.
+// - Waktu saat catatan dibuat dan kapan terakhir kali diperbarui.
+//
+// Kita juga membuat semacam daftar isi otomatis berdasarkan pemilik dan waktu pembuatan
+// agar proses pencarian catatan nantinya berjalan sangat cepat.
+// Semua ini disimpan dalam tabel bernama "journal_entries".
+
+model JournalEntry {
+  id               String   @id @default(uuid())
+  ownerId          String   @map("owner_id")
+  owner            User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  contentEncrypted String   @map("content_encrypted") @db.Text
+  contentIv        String   @map("content_iv")
+  contentAuthTag   String   @map("content_auth_tag")
+  tags             String[]
+  sentimentScore   Float?
+  sentimentLabel   String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([ownerId, createdAt])
+  @@map("journal_entries")
+}
